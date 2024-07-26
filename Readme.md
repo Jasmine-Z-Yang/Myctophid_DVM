@@ -1,10 +1,10 @@
 ## Source codes for Myctophid DVM study
 
-**Software required: R (version 4.4.0), QGIS (3.38.1)** <br /><br />\
+**Software required: R (version 4.4.0), QGIS (3.38.1)**<br /><br />
 
 The "Myctobase" directory contains data downloaded from the freely available [Myctobase](https://zenodo.org/records/6562776). Three points in "event_edit.csv" have been modified from the original "event.csv" based on literature. Modifications made are stated in the "Notes" column.
 
-A netCDF file of GEBCO Ocean bathymetry data is required for *"Data_wrangling_for_QGIS.R"* and *"Total_biomass_analysis.R"*, which is freely available at [GEBCO_2022 Grid](https://www.bodc.ac.uk/data/published_data_library/catalogue/10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c/). The "GEBCO_05_Dec_2023_c97a092c1373/GEBCO_05_Dec_2023_c97a092c1373.nc" file used in the codes is a copy of the GEBCO_2022_Grid (-180 to 180 longitude, -40 to -80 latitude) downloaded on 05/12/2023.<br /><br />\
+A netCDF file of GEBCO Ocean bathymetry data is required for *"Data_wrangling_for_QGIS.R"* and *"Total_biomass_analysis.R"*, which is freely available at [GEBCO_2022 Grid](https://www.bodc.ac.uk/data/published_data_library/catalogue/10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c/). The "GEBCO_05_Dec_2023_c97a092c1373/GEBCO_05_Dec_2023_c97a092c1373.nc" file used in the codes is a copy of the GEBCO_2022_Grid (-180 to 180 longitude, -40 to -80 latitude) downloaded on 05/12/2023.<br /><br />
 
 It is recommended to run the codes in the following order to ensure all prerequisites are produced:
 
