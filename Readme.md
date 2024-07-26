@@ -50,6 +50,7 @@ It is recommended to run the codes in the following order to ensure all prerequi
     -   Runs the species-specific GAMs and all-species GAM
     -   Produces figure 3, figure 4, figure 5
     -   Exports: "DVM_pattern.csv" (table 1), "GAM_result.csv" (supplementary table S5)
+    -   **The function AllanCameron/geomtextpath::geom_textcontour() used to produce contour lines in the heatmap DVM diagrams (figure 3) produces error on Mac devices. Use on Windows recommended.**
 
 9.  *Total_biomass_analysis.R*
 
