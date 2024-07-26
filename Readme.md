@@ -1,10 +1,10 @@
 ## Source codes for Myctophid DVM study
 
-**Software required: R (version 4.4.0), QGIS (3.38.1)**\
+**Software required: R (version 4.4.0), QGIS (3.38.1)**<br>
 
 The "Myctobase" directory contains data downloaded from the freely available [Myctobase](https://zenodo.org/records/6562776). Three points in "event_edit.csv" have been modified from the original "event.csv" based on literature. Modifications made are stated in the "Notes" column.
 
-The "GEBCO_05_Dec_2023_c97a092c1373" directory contains circumpolar ocean bathymetry data between 40-80°S downloaded from the freely available [GEBCO_2022 Grid](https://www.bodc.ac.uk/data/published_data_library/catalogue/10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c/) on 05/12/2023.\
+The "GEBCO_05_Dec_2023_c97a092c1373" directory contains circumpolar ocean bathymetry data between 40-80°S downloaded from the freely available [GEBCO_2022 Grid](https://www.bodc.ac.uk/data/published_data_library/catalogue/10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c/) on 05/12/2023.<br>
 
 It is recommended to run the codes in the following order to ensure all prerequisites are produced:
 
