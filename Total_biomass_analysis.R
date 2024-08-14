@@ -146,6 +146,30 @@ which.mins <- function(x, mins=3) {
 intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y))][1]
 intercept
 
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
+intercept
+
+
 
 # Proportion of DVM population 
 DVM_proportion <- (sum(night_predict_data$night_predict) - 
@@ -471,7 +495,8 @@ total_weight
 (sum(total_weight$total_biomass) + sum(2*total_weight$total_biomass_SE))/(10^12) 
 (sum(total_weight$total_biomass) - sum(2*total_weight$total_biomass_SE))/(10^12)
 
-#DVM biomass 
+#DVM proportion
+total_abundance*DVM_proportion/10^12
 sum(total_weight$total_biomass)*DVM_proportion/(10^12)
 
 
