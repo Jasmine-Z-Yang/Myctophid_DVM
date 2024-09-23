@@ -135,16 +135,9 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
-
-which.mins <- function(x, mins=3) {
-  head(order(x), mins)
-}
-
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y))][1]
-intercept
 
 day_prop$abun <- round(day_prop$y*10^5, digits = 0)
 head(day_prop)

@@ -119,6 +119,7 @@ knots <- list(diel_num = c(0.5,1.5,2.5,3.5,4.5))
 Results_table <- data.frame(Species = NA,
                       Peak_day = NA, Peak_night = NA,
                       centre_day = NA, centre_night = NA,
+                      median_day = NA, median_night = NA, 
                       day_abundance = NA, night_abundance = NA,
                       Threshold = NA,
                       proportion = NA)
@@ -204,6 +205,7 @@ result <- data.frame(Species = name,
 result
 GAM_result <- rbind(GAM_result, result)
 GAM_result
+
 
 
 # Plotting
@@ -314,12 +316,33 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 1)]
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
+
 
 
 # Plot
@@ -397,6 +420,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -591,12 +615,31 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 2)]
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 1)]
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
 
 
@@ -675,6 +718,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night, 
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -870,11 +914,31 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 1)]
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
 
 
@@ -953,6 +1017,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -1148,12 +1213,31 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 3)]
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 3)][1]
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
 
 
@@ -1233,6 +1317,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -1361,7 +1446,7 @@ Gnic_plot1
 
 
 # Daytime abundance
-day_predict_data <- data.frame(diel_num = 1.5, depth = seq(1, 1000, by = 1), pca = 0)
+day_predict_data <- data.frame(diel_num = 2, depth = seq(1, 1000, by = 1), pca = 0)
 day_predict_data
 
 day_predict <- predict.gam(Gnic_model, day_predict_data, 
@@ -1389,7 +1474,7 @@ day_abundance_SE
 
 
 # Nighttime abundance 
-night_predict_data <- data.frame(diel_num = 3.5, depth = seq(1, 1000, by = 1), pca = 0)
+night_predict_data <- data.frame(diel_num = 4, depth = seq(1, 1000, by = 1), pca = 0)
 night_predict_data
 
 night_predict <- predict.gam(Gnic_model, night_predict_data, 
@@ -1424,18 +1509,36 @@ difference_factor
 
 day_predict_data$inflated_day <- day_predict_data$day_predict * difference_factor
 inflated_day_abundance <- sum(day_predict_data$inflated_day)
-inflated_day_abundance
+
+central_day <- sum(day_predict_data$inflated_day * day_predict_data$depth)/
+  sum(day_predict_data$inflated_day)
+central_day
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
-day_prop <- day_prop[day_prop$x < 400,]
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
-night_prop <- night_prop[night_prop$x < 400,]
 
-day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 1)]
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 1)]
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
+
 
 
 # Plot
@@ -1514,6 +1617,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -1708,12 +1812,31 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 2)]
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 2)][2]
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
 
 
@@ -1792,6 +1915,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -1986,12 +2110,31 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 10)]
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y), 10)][3]
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
 
 
@@ -2070,6 +2213,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night, 
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -2265,12 +2409,28 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-day_prop$x[which.mins(abs(day_prop[day_prop$x < 400,]$y - night_prop[night_prop$x < 400,]$y), 10)]
-intercept <- day_prop$x[which.mins(abs(day_prop[day_prop$x < 400,]$y - night_prop[night_prop$x < 400,]$y), 10)][7]
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
 
 
@@ -2349,6 +2509,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -2527,11 +2688,31 @@ inflated_day_abundance <- sum(day_predict_data$inflated_day)
 inflated_day_abundance
 
 
-# Intercept
+# Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
 
-intercept <- day_prop$x[which.mins(abs(day_prop$y - night_prop$y))][1]
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
+
+day_count <- vector()
+for(i in 1:nrow(day_prop)){
+  day_count <- c(day_count, rep(day_prop$x[i], day_prop$abun[i]))
+}
+median_day <- median(day_count)
+median_day
+
+night_prop$abun <- round(night_prop$y*10^5, digits = 0)
+head(day_prop)
+
+night_count <- vector()
+for(i in 1:nrow(night_prop)){
+  night_count <- c(night_count, rep(night_prop$x[i], night_prop$abun[i]))
+}
+median_night <- median(night_count)
+median_night
+
+intercept <- (median_night + median_day)/2
 intercept
 
 
@@ -2608,6 +2789,7 @@ Results <- data.frame(Species = name,
                       Peak_day = peak_day, Peak_night = peak_night,
                       centre_day = round(central_day, digits = 0), 
                       centre_night = round(central_night, digits = 0),
+                      median_day = median_day, median_night = median_night, 
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
                                              " (", round(day_abundance_SE/1000, digits = 3), ")"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
@@ -2632,6 +2814,7 @@ Results_table
 mean(Results_table$proportion)
 
 write.csv(Results_table, "DVM_pattern.csv", row.names = F)
+
 
 # GAM result
 GAM_result <- na.omit(GAM_result)
@@ -2660,7 +2843,7 @@ Eant_fit +
   Ecar_fit +  plot_layout(ncol = 2, axis_titles = "collect")
 # 800W x 1400H (8 x 14)
 
-# DVM pattern (day/night only)
+# DVM pattern (day/night only - depth on y)
 Eant_fit1 +
   Kand_fit1 + Gbra_fit1 + Pbol_fit1 +
   Gnic_fit1 + Gfra_fit1 + Pten_fit1 +
