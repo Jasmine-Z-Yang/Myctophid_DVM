@@ -1,4 +1,4 @@
-## Source codes for Myctophid DVM study
+## Source codes and electronic supplementary table for Myctophid DVM study
 
 **Software required: R (version 4.4.0), QGIS (3.38.1)**<br /><br />
 
