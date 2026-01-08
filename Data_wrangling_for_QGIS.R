@@ -31,6 +31,10 @@ csv <- data[,c( "lon", "lat",
                 "netType", "cruiseCode")]
 head(csv)
 
+csv <- csv[csv$lat >= -65,]
+csv <- csv[csv$netType != "IKMT",]
+nrow(csv)
+
 size_data <- unique(size$eventID)
 size_data
 
@@ -41,6 +45,9 @@ csv$size <- NA
 csv[csv$cruiseCode %in% size_data,]$size <- "y"
 csv[is.na(csv$size),]$size <- "n"
 head(csv)
+
+table(csv$netType)
+nrow(csv)
 
 write.csv(csv, "Net type.csv", row.names = FALSE)
 

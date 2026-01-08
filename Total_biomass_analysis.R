@@ -10,7 +10,6 @@ require(raster)
 require(terra)
 
 
-
 ####################
 ## Data wrangling ##
 ####################
@@ -79,7 +78,7 @@ dim(new_IKMT)
 All_model1 <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                         s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                       select = TRUE, data = new_IKMT,
-                      family = "tw", knots = knots, method = "ML")
+                      family = "tw", knots = knots, method = "REML")
 
 summary(All_model1)
 plot(All_model1, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -91,38 +90,59 @@ day_predict_data <- data.frame(diel_num = 1.5, depth = seq(1, 1000, by = 1), pca
 day_predict_data
 
 day_predict <- predict.gam(All_model1, day_predict_data, 
-                           type = "response", se.fit = T)
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
+
+day_predict$day_predict <- exp(All_model1$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(All_model1$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(All_model1$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
 day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+head(day_predict_data)
+
+peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
+peak_day
+
+central_day <- sum(day_predict_data$day_predict * day_predict_data$depth)/
+  sum(day_predict_data$day_predict)
+central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
-# Nighttime abundance
+# Nighttime abundance 
 night_predict_data <- data.frame(diel_num = 3.5, depth = seq(1, 1000, by = 1), pca = 0)
 night_predict_data
 
 night_predict <- predict.gam(All_model1, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                             type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(All_model1$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(All_model1$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(All_model1$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
+
+peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
+peak_night
+
+central_night <- sum(night_predict_data$night_predict * night_predict_data$depth)/
+  sum(night_predict_data$night_predict)
+central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
-
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 # Day-night difference
 absolute_difference <- night_abundance-day_abundance
@@ -178,7 +198,7 @@ DVM_proportion
 ###################################
 
 # Load netcdf data
-raster_ocean <- terra::rast("GEBCO_05_Dec_2023_c97a092c1373/gebco_2023_n-40.0_s-80.0_w-180.0_e180.0.nc")
+raster_ocean <- terra::rast("../GEBCO_05_Dec_2023_c97a092c1373/gebco_2023_n-40.0_s-80.0_w-180.0_e180.0.nc")
 raster_ocean
 res(raster_ocean)
 
@@ -232,8 +252,10 @@ total_area/10^12
 total_abundance <- (night_abundance/10^3)*total_area
 total_abundance/10^12
 
-total_abundance_SE <- (night_abundance_SE/10^3)*total_area
-total_abundance_SE/10^12
+total_abundance_upr <- (night_abundance_upr/10^3)*total_area
+total_abundance_upr/10^12
+total_abundance_lwr <- (night_abundance_lwr/10^3)*total_area
+total_abundance_lwr/10^12
 
 
 
@@ -349,7 +371,8 @@ sum(proportion$freq)
 
 # Abundance of individual species 
 proportion$abundance <- (proportion$freq*night_abundance)/1000
-proportion$abundance_SE <- (proportion$freq*night_abundance_SE)/1000
+proportion$abundance_upr <- (proportion$freq*night_abundance_upr)/1000
+proportion$abundance_lwr <- (proportion$freq*night_abundance_lwr)/1000
 proportion
 
 
@@ -393,11 +416,15 @@ mean_size
 
 # Modelling average fish weight #
 model_output <- data.frame(scientificName = NA, 
-                           lat.coef = NA, depth.coef = NA, pca.coef = NA,
                            lat = NA, depth = NA, pca = NA, average_fish = NA, 
                            a = NA, b = NA,
                            average_weight = NA)
 model_output
+
+length_output <- data.frame(scientificName = NA,
+                            lat.coef = NA, depth.coef = NA, pca.coef = NA,
+                            R = NA)
+length_output
 
 species_list <- unique(ind_species$scientificName)
 species_list
@@ -415,14 +442,29 @@ for(i in species_list){
   # Average fish length 
   sp_all <- merge(sp_length, new, by = "eventID", all.x = T, all.y = F)
   hist(sp_all$standard_length, main = i)
+  
   length_model <- lm(standard_length ~ lat + depth + pca, sp_all)
+  length_summary <- summary(length_model)
+  
   print((unique(sp_all$lat)))
   print(median(unique(sp_all$lat), na.rm = T))
+  
   print(sort(unique(sp_all$depth)))
   print(median(unique(sp_all$depth), na.rm = T))
-  length_coefficient <- data.frame(lat.coef = length_model$coefficients[[2]],
-                                   depth.coef = length_model$coefficients[[3]],
-                                   pca.coef = length_model$coefficients[[4]])
+  
+  length_coefficient <- data.frame(scientificName = i,
+                                   lat.coef = paste0(round(length_model$coefficients[[2]], digits = 3),
+                                                     " (", round(length_summary$coefficients[2,4], digits = 3),
+                                                     ")"),
+                                   depth.coef = paste0(round(length_model$coefficients[[3]], digits = 3),
+                                                       " (", round(length_summary$coefficients[3,4], digits = 3),
+                                                       ")"),
+                                   pca.coef = paste0(round(length_model$coefficients[[4]], digits = 3),
+                                                     " (", round(length_summary$coefficients[4,4], digits = 3),
+                                                     ")"),
+                                   R = round(length_summary$adj.r.squared, digits = 3))
+  length_coefficient
+  
   average_point <- data.frame(lat = median(unique(sp_all$lat), na.rm = T), 
                               depth = round(median(unique(sp_all$depth), na.rm = T), digits = 0), 
                               pca = 0)
@@ -438,11 +480,12 @@ for(i in species_list){
   average_weight <- exp(average_weight)
   print(average_weight)
   
-  average_weight <- cbind(scientificName = i, length_coefficient, average_point, average_fish, 
+  average_weight <- cbind(scientificName = i, average_point, average_fish, 
                           weight_coefficient, average_weight)
   print(average_weight)
   
   model_output <- rbind(model_output, average_weight)
+  length_output <- rbind(length_output, length_coefficient)
 }
 
 model_output <- na.omit(model_output)
@@ -455,6 +498,11 @@ model_output$average_weight <- round(model_output$average_weight, digits = 1)
 size_table <- merge(mean_size, model_output, by = "scientificName")
 size_table
 write.csv(size_table, "Size_summary.csv", row.names = F)
+
+
+length_output <- na.omit(length_output)
+length_output
+write.csv(length_output, "Length_model_summary.csv", row.names = F)
 
 
 
@@ -471,22 +519,22 @@ total_weight
 
 # Biomass per metre squared per species 
 total_weight$abundance_weight <- total_weight$abundance*as.numeric(total_weight$weight)
-total_weight$abundance_weight_SE <- total_weight$abundance_SE*as.numeric(total_weight$weight)
+total_weight$abundance_weight_upr <- total_weight$abundance_upr*as.numeric(total_weight$weight)
+total_weight$abundance_weight_lwr <- total_weight$abundance_lwr*as.numeric(total_weight$weight)
 total_weight
 
 # Total abundance per species 
 total_weight$total_abundance <- (total_weight$abundance)*total_area
-total_weight$total_abundance_SE <- (total_weight$abundance_SE)*total_area
+total_weight$total_abundance_upr <- (total_weight$abundance_upr)*total_area
+total_weight$total_abundance_lwr <- (total_weight$abundance_lwr)*total_area
 total_weight
 
 # Total biomass per species 
 total_weight$total_biomass <- total_weight$total_abundance*as.numeric(total_weight$weight)
-total_weight$total_biomass_SE <- total_weight$total_abundance_SE*as.numeric(total_weight$weight)
+total_weight$total_biomass_upr <- total_weight$total_abundance_upr*as.numeric(total_weight$weight)
+total_weight$total_biomass_lwr <- total_weight$total_abundance_lwr*as.numeric(total_weight$weight)
 total_weight
 
-# 95% CI for total biomass
-(sum(total_weight$total_biomass) + sum(2*total_weight$total_biomass_SE))/(10^12) 
-(sum(total_weight$total_biomass) - sum(2*total_weight$total_biomass_SE))/(10^12)
 
 #DVM proportion
 total_abundance*DVM_proportion/10^12
@@ -501,32 +549,40 @@ total_weight[nrow(total_weight) + 1,] <- c("All species",
                                           NA, NA,
                                           sum(total_weight$mean), NA,
                                           sum(total_weight$abundance),
-                                          sum(total_weight$abundance_SE),
+                                          sum(total_weight$abundance_upr),
+                                          sum(total_weight$abundance_lwr),
                                           sum(total_weight$abundance_weight),
-                                          sum(total_weight$abundance_weight_SE),
+                                          sum(total_weight$abundance_weight_upr),
+                                          sum(total_weight$abundance_weight_lwr),
                                           sum(total_weight$total_abundance),
-                                          sum(total_weight$total_abundance_SE),
+                                          sum(total_weight$total_abundance_upr),
+                                          sum(total_weight$total_abundance_lwr),
                                           sum(total_weight$total_biomass),
-                                          sum(total_weight$total_biomass_SE))
+                                          sum(total_weight$total_biomass_upr),
+                                          sum(total_weight$total_biomass_lwr))
 total_weight
 
 
 # Export table 
 total_weight_final <- total_weight %>%
   mutate(across(2:last_col(), as.numeric)) %>%
-  mutate(across(10:last_col(), ~ ./10^12)) %>%
-  mutate(across(2:last_col(), round, 3)) %>%
-  mutate(across(c(2,3,5,10:last_col()), round, 2))
+  mutate(across(12:last_col(), ~ ./10^12)) %>%
+  mutate(across(c(4, 6:11), round, 3)) %>%
+  mutate(across(c(5,12:last_col()), round, 2))
 total_weight_final
 
-total_weight_final$abundance <- paste0(total_weight_final$abundance, " (",
-                                       total_weight_final$abundance_SE, ")")
-total_weight_final$abundance_weight <- paste0(total_weight_final$abundance_weight, " (",
-                                              total_weight_final$abundance_weight_SE, ")")
-total_weight_final$total_abundance <- paste0(total_weight_final$total_abundance, " (",
-                                              total_weight_final$total_abundance_SE, ")")
-total_weight_final$total_biomass <- paste0(total_weight_final$total_biomass, " (",
-                                              total_weight_final$total_biomass_SE, ")")
+total_weight_final$abundance <- paste0(total_weight_final$abundance, " [",
+                                       total_weight_final$abundance_lwr, "-",
+                                       total_weight_final$abundance_upr, "]")
+total_weight_final$abundance_weight <- paste0(total_weight_final$abundance_weight, " [",
+                                              total_weight_final$abundance_weight_lwr, "-",
+                                              total_weight_final$abundance_weight_upr, "]")
+total_weight_final$total_abundance <- paste0(total_weight_final$total_abundance, " [",
+                                             total_weight_final$total_abundance_lwr, "-",
+                                             total_weight_final$total_abundance_upr, "]")
+total_weight_final$total_biomass <- paste0(total_weight_final$total_biomass, " [",
+                                           total_weight_final$total_biomass_lwr, "-",
+                                           total_weight_final$total_biomass_upr, "]")
 total_weight_final <- total_weight_final %>%
   arrange(factor(scientificName, levels = sp_order))
 total_weight_final

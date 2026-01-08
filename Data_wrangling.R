@@ -5,6 +5,7 @@
 rm(list = ls())
 
 require(dplyr)
+require(tidyr)
 require(factoextra)
 require(ggplot2)
 require(Hmisc)
@@ -119,10 +120,12 @@ data$volume <- rowSums(data[,c("volumeFiltered", "volumeFiltered2")], na.rm = TR
 
 
 # Filling missing diel values #
-for(i in 1:nrow(data)){
+data$time <- as.POSIXct(data$start_eventTime, format = "%d/%m/%Y  %H:%M")
+data$hour <- hour(data$time)
+
+for(i in 1:nrow(data)){    
   if(is.na(data$diel[i])){
-    time = hour(dmy_hm(data$start_eventTime[i]))
-    if(time >= 12){
+    if(data$hour[i] >= 12){
       if(-12 <= data$solarPosition[i] & data$solarPosition[i] <= 12){
         data$diel[i] <- "dusk"
       } else if(data$solarPosition[i] < 0){
@@ -159,6 +162,15 @@ for(i in 1:nrow(data)){
   } else {data$diel[i] <- NA}
 }
 
+
+# Assignig season #
+data$month <- month(data$time)
+data$season <- NA
+
+data[data$month == 12 | data$month == 1 | data$month == 2,]$season <- "Summer"
+data[data$month == 3 | data$month == 4 | data$month == 5,]$season <- "Autumn"
+data[data$month == 6 | data$month == 7 | data$month == 8,]$season <- "Winter"
+data[data$month == 9 | data$month == 10 | data$month == 11,]$season <- "Spring"
 
 
 # Editing variable names #
@@ -207,6 +219,7 @@ data$codendMesh[data$cruiseCode == "HIPPIES" & data$netType == "IYGPT (171)"] <-
 data$codendMesh[data$cruiseCode == "HIPPIES" & data$netType == "RMT8"] <- 0.85
 data$codendMesh[data$netType == "MOHT"] <- 1.95
 
+data$minimumDepthInMeters[data$cruiseCode == "brokeeast" & is.na(data$minimumDepthInMeters)] <- 0
 
 
 ##########################
@@ -941,6 +954,112 @@ which(cruise$volume > cruise$max)
 which(cruise$volume < cruise$min)
 
 new_data <- bind_rows(new_data, cruise)
+
+
+
+###############################
+# Sampling bias visualisation #
+###############################
+
+# 24 hour 
+data_IKMT <- new_data[new_data$netType != "IKMT",]
+nrow(data_IKMT)
+head(data_IKMT)
+
+new <- data_IKMT[data_IKMT$lat >= -65,]
+nrow(new)
+head(new)
+sort(unique(new$solarPosition))
+
+
+ggplot(data = new, aes(x = hour, fill = diel)) + geom_histogram()
+ggplot(data = new, aes(x = solarPosition, fill = diel)) + geom_histogram()
+table(new$diel)
+hist(new$solarPosition)
+
+grid <- expand.grid(1:1000, unique(round(new$solarPosition, digits = 0)))
+head(grid)
+sort(unique(grid$Var2))
+colnames(grid)[1:2] <- c("depth", "solarPosition")
+
+count <- grid %>%
+  mutate(depth_int = cut(depth, seq(0,1000,20)), 
+         solar_int = cut(solarPosition, seq(-65,65,5)),
+         .keep = "unused") %>%
+  group_by(depth_int, solar_int) %>%
+  distinct()
+count
+
+new$depth <- round(new$depth, digits = 0)
+new$solarPosition <- round(new$solarPosition, digits = 0)
+
+count_24 <- new %>%
+  mutate(depth_int = cut(depth, seq(0,1000,20)), 
+         solar_int = cut(solarPosition, seq(-65,65,5))) %>%
+  group_by(depth_int, solar_int) %>%
+  summarise(count = n())
+head(count_24)  
+
+?merge
+
+count_final <- merge(count_24, count, by = c("depth_int", "solar_int"), all.x = T, all.y = T)
+count_final
+
+
+count_final$depth <- sapply(strsplit(as.character(count_final$depth_int), "\\D+"), `[`, 3)
+count_final$sign <- sapply(strsplit(as.character(count_final$solar_int), "[^\\d-]+"), `[`, 3)
+count_final$solar <- sapply(strsplit(as.character(count_final$solar_int), "\\D+"), `[`, 3)
+count_final <- count_final %>% unite(solar, sign, solar, sep = "", na.rm = T)
+
+
+sample24 <- ggplot(data = count_final, aes(x = as.numeric(solar), y = as.numeric(depth), 
+                               fill = count)) +
+  geom_tile(height = 21) +
+  theme_classic() +
+  scale_y_reverse(breaks=seq(0,1000,200), 
+                  expand = c(0.05, 0, 0.03, 0)) +
+  scale_fill_continuous(na.value="lightgrey") +
+  geom_segment(aes(x = -62, xend = -13, y = -30, yend = -30),
+               size = 2, col = "darkblue") +
+  geom_segment(aes(x = -12, xend = 12, y = -30, yend = -30),
+               size = 2, col = "purple") + 
+  geom_segment(aes(x = 13, xend = 66, y = -30, yend = -30),
+               size = 2, col = "orange") +
+  annotate("text", x = -38, y = -60, label = "Night", col = "darkblue") +
+  annotate("text", x = 0, y = -60, label = "Dusk/Dawn", col = "purple") +
+  annotate("text", x = 40, y = -60, label = "Day", col = "orange") +
+  labs(title = "(A)", x = "Solar position (°)", y = "Depth (m)",
+       fill = "Sample") +
+  theme(legend.position=c(.12,.21),
+        legend.background=element_blank())
+sample24
+
+
+# Season #
+new$month <- month(new$start_eventTime)
+sample_month <- new %>% group_by(month) %>% summarise(count = n())
+sample_month
+sum(sample_month$count)
+sample_month$season <- c("Summer", "Summer", rep("Autumn",3),
+                         rep("Winter",3), rep("Spring",3),
+                         "Summer")
+sample_month$season <- factor(sample_month$season, 
+                              levels = c("Summer", "Autumn",
+                                         "Winter", "Spring"))
+sample_month %>% group_by(season) %>% summarise(count = sum(count))
+
+
+sample_year <- ggplot(data = sample_month, aes(x = factor(month), y = count, fill = season)) +
+  geom_bar(stat = "identity") +
+  labs(title = "(B)", y = "Sample", x = "Month", fill = "") +
+  theme_classic() +
+  scale_x_discrete(limits = factor(c(12,1:11))) +
+  theme(legend.position=c(.9,.8),
+        legend.background=element_blank())
+sample_year
+
+sample24 + sample_year + plot_layout(ncol = 1, heights = c(4,1))
+
 
 
 ##############################

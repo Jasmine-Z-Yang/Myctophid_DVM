@@ -2,13 +2,13 @@
 ### DVM analysis ###
 ####################
 
-rm(list = ls())
-
 require(dplyr)
 require(geomtextpath)
 require(ggplot2)
 require(mgcv)
 require(patchwork)
+
+rm(list = ls())
 
 
 
@@ -117,8 +117,6 @@ knots <- list(diel_num = c(0.5,1.5,2.5,3.5,4.5))
 
 # Result tables
 Results_table <- data.frame(Species = NA,
-                      Peak_day = NA, Peak_night = NA,
-                      centre_day = NA, centre_night = NA,
                       median_day = NA, median_night = NA, 
                       day_abundance = NA, night_abundance = NA,
                       Threshold = NA,
@@ -126,7 +124,7 @@ Results_table <- data.frame(Species = NA,
 Results_table
 
 GAM_result <- data.frame(Species = NA, Interaction = NA, depth = NA, time = NA, net = NA,
-                         R_squared = NA, N = NA, lat = NA)
+                         R_squared = NA, AIC = NA, N = NA, lat = NA)
 GAM_result
 
 
@@ -188,7 +186,7 @@ head(Eant_raw)
 Eant_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Eant, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Eant_summary <- summary(Eant_model)
 Eant_summary
 plot(Eant_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -200,6 +198,7 @@ result <- data.frame(Species = name,
                          time = round(Eant_summary$s.table[3,4], digits = 5),
                          net = round(Eant_summary$p.pv[[2]], digits =5),
                          R_squared = round(Eant_summary$dev.expl, digits = 3), 
+                         AIC = round(AIC(Eant_model), digits = 0),
                          N = Eant_summary$n,
                          lat = abs(f(count$count)[[1]]))
 result
@@ -253,15 +252,15 @@ day_predict_data <- data.frame(diel_num = 1.5, depth = seq(1, 1000, by = 1),
 day_predict_data
 
 day_predict <- predict.gam(Eant_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Eant_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Eant_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Eant_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -272,8 +271,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -282,27 +283,29 @@ night_predict_data <- data.frame(diel_num = 3.5, depth = seq(1, 1000, by = 1),
 night_predict_data
 
 night_predict <- predict.gam(Eant_model, night_predict_data, 
-                             type = "response", se.fit = T)
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
+
+night_predict$night_predict <- exp(Eant_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Eant_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Eant_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
 night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
-  
+
 central_night <- sum(night_predict_data$night_predict * night_predict_data$depth)/
   sum(night_predict_data$night_predict)
 central_night
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
-
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -417,14 +420,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
                       median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -491,7 +493,7 @@ Kand$netType <- as.factor(Kand$netType)
 Kand_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Kand, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Kand_summary <- summary(Kand_model)
 Kand_summary
 plot(Kand_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -502,6 +504,7 @@ result <- data.frame(Species = name,
                      time = round(Kand_summary$s.table[3,4], digits = 5),
                      net = round(Kand_summary$p.pv[[2]], digits =5),
                      R_squared = round(Kand_summary$dev.expl, digits = 3), 
+                     AIC = round(AIC(Kand_model), digits = 0),
                      N = Kand_summary$n,
                      lat = abs(f(count$count)[[1]]))
 result
@@ -553,15 +556,15 @@ day_predict_data <- data.frame(diel_num = 2, depth = seq(1, 1000, by = 1), pca =
 day_predict_data
 
 day_predict <- predict.gam(Kand_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Kand_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Kand_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Kand_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -572,8 +575,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -581,15 +586,15 @@ night_predict_data <- data.frame(diel_num = 4, depth = seq(1, 1000, by = 1), pca
 night_predict_data
 
 night_predict <- predict.gam(Kand_model, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(Kand_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Kand_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Kand_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -600,8 +605,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE 
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -715,14 +722,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
-                      median_day = median_day, median_night = median_night, 
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -789,7 +795,7 @@ head(Gbra_raw)
 Gbra_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Gbra, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Gbra_summary <- summary(Gbra_model)
 Gbra_summary
 plot(Gbra_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -801,6 +807,7 @@ result <- data.frame(Species = name,
                      time = round(Gbra_summary$s.table[3,4], digits = 5),
                      net = round(Gbra_summary$p.pv[[2]], digits =5),
                      R_squared = round(Gbra_summary$dev.expl, digits = 3), 
+                     AIC = round(AIC(Gbra_model), digits = 0),
                      N = Gbra_summary$n,
                      lat = abs(f(count$count)[[1]]))
 result
@@ -852,15 +859,15 @@ day_predict_data <- data.frame(diel_num = 2, depth = seq(1, 1000, by = 1), pca =
 day_predict_data
 
 day_predict <- predict.gam(Gbra_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Gbra_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Gbra_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Gbra_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -871,8 +878,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -880,15 +889,15 @@ night_predict_data <- data.frame(diel_num = 4, depth = seq(1, 1000, by = 1), pca
 night_predict_data
 
 night_predict <- predict.gam(Gbra_model, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(Gbra_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Gbra_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Gbra_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -899,8 +908,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -1014,14 +1025,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
                       median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -1088,7 +1098,7 @@ head(Pbol_raw)
 Pbol_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Pbol, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Pbol_summary <- summary(Pbol_model)
 Pbol_summary
 plot(Pbol_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -1100,6 +1110,7 @@ result <- data.frame(Species = name,
                      time = round(Pbol_summary$s.table[3,4], digits = 5),
                      net = round(Pbol_summary$p.pv[[2]], digits =5),
                      R_squared = round(Pbol_summary$dev.expl, digits = 3), 
+                     AIC = round(AIC(Pbol_model), digits = 0),
                      N = Pbol_summary$n,
                      lat = abs(f(count$count)[[1]]))
 result
@@ -1151,15 +1162,15 @@ day_predict_data <- data.frame(diel_num = 1.5, depth = seq(1, 1000, by = 1), pca
 day_predict_data
 
 day_predict <- predict.gam(Pbol_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Pbol_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Pbol_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Pbol_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -1170,8 +1181,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -1179,15 +1192,15 @@ night_predict_data <- data.frame(diel_num = 3.5, depth = seq(1, 1000, by = 1), p
 night_predict_data
 
 night_predict <- predict.gam(Pbol_model, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(Pbol_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Pbol_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Pbol_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -1198,8 +1211,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -1314,14 +1329,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
                       median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -1388,7 +1402,7 @@ head(Gnic_raw)
 Gnic_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Gnic, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Gnic_summary <- summary(Gnic_model)
 Gnic_summary
 plot(Gnic_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -1399,6 +1413,7 @@ result <- data.frame(Species = name,
                      time = round(Gnic_summary$s.table[3,4], digits = 5),
                      net = round(Gnic_summary$p.pv[[2]], digits =5),
                      R_squared = round(Gnic_summary$dev.expl, digits = 3), 
+                     AIC = round(AIC(Gnic_model), digits = 0),
                      N = Gnic_summary$n,
                      lat = abs(f(count$count)[[1]]))
 result
@@ -1450,15 +1465,15 @@ day_predict_data <- data.frame(diel_num = 2, depth = seq(1, 1000, by = 1), pca =
 day_predict_data
 
 day_predict <- predict.gam(Gnic_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Gnic_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Gnic_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Gnic_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -1469,8 +1484,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -1478,15 +1495,15 @@ night_predict_data <- data.frame(diel_num = 4, depth = seq(1, 1000, by = 1), pca
 night_predict_data
 
 night_predict <- predict.gam(Gnic_model, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(Gnic_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Gnic_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Gnic_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -1497,8 +1514,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -1518,6 +1537,9 @@ central_day
 # Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
+
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
 
 day_count <- vector()
 for(i in 1:nrow(day_prop)){
@@ -1614,14 +1636,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
                       median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -1688,7 +1709,7 @@ head(Gfra_raw)
 Gfra_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Gfra, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Gfra_summary <- summary(Gfra_model)
 Gfra_summary
 plot(Gfra_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -1699,6 +1720,7 @@ result <- data.frame(Species = name,
                      time = round(Gfra_summary$s.table[3,4], digits = 5),
                      net = round(Gfra_summary$p.pv[[2]], digits =5),
                      R_squared = round(Gfra_summary$dev.expl, digits = 3), 
+                     AIC = round(AIC(Gfra_model), digits = 0),
                      N = Gfra_summary$n,
                      lat = abs(f(count$count)[[1]]))
 result
@@ -1750,15 +1772,15 @@ day_predict_data <- data.frame(diel_num = 2, depth = seq(1, 1000, by = 1), pca =
 day_predict_data
 
 day_predict <- predict.gam(Gfra_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Gfra_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Gfra_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Gfra_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -1769,8 +1791,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance
@@ -1778,15 +1802,15 @@ night_predict_data <- data.frame(diel_num = 4, depth = seq(1, 1000, by = 1), pca
 night_predict_data
 
 night_predict <- predict.gam(Gfra_model, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(Gfra_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Gfra_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Gfra_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -1797,8 +1821,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -1912,14 +1938,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
                       median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -1986,7 +2011,7 @@ head(Pten_raw)
 Pten_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Pten, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Pten_summary <- summary(Pten_model)
 Pten_summary
 plot(Pten_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -1997,6 +2022,7 @@ result <- data.frame(Species = name,
                      time = round(Pten_summary$s.table[3,4], digits = 5),
                      net = round(Pten_summary$p.pv[[2]], digits =5),
                      R_squared = round(Pten_summary$dev.expl, digits = 3), 
+                     AIC = round(AIC(Pten_model), digits = 0),
                      N = Pten_summary$n,
                      lat = abs(f(count$count)[[1]]))
 result
@@ -2048,15 +2074,15 @@ day_predict_data <- data.frame(diel_num = 2, depth = seq(1, 1000, by = 1), pca =
 day_predict_data
 
 day_predict <- predict.gam(Pten_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Pten_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Pten_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Pten_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -2067,8 +2093,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -2076,15 +2104,15 @@ night_predict_data <- data.frame(diel_num = 4, depth = seq(1, 1000, by = 1), pca
 night_predict_data
 
 night_predict <- predict.gam(Pten_model, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(Pten_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Pten_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Pten_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -2095,8 +2123,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -2210,14 +2240,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
-                      median_day = median_day, median_night = median_night, 
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -2284,7 +2313,7 @@ head(Ecar_raw)
 Ecar_model <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                      s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                    data = Ecar, select = TRUE,
-                   family = "tw", knots = knots, method = "ML")
+                   family = "tw", knots = knots, method = "REML")
 Ecar_summary <- summary(Ecar_model)
 Ecar_summary
 plot(Ecar_model, scheme = 2, scale = 0, pages = 1, all.terms = TRUE)
@@ -2295,7 +2324,8 @@ result <- data.frame(Species = name,
                      depth = round(Ecar_summary$s.table[2,4], digits = 5),
                      time = round(Ecar_summary$s.table[3,4], digits = 5),
                      net = round(Ecar_summary$p.pv[[2]], digits =5),
-                     R_squared = round(Ecar_summary$dev.expl, digits = 3), 
+                     R_squared = round(Ecar_summary$dev.expl, digits = 3),
+                     AIC = round(AIC(Ecar_model), digits = 0),
                      N = Ecar_summary$n,
                      lat = abs(f(count$count)[[1]]))
 result
@@ -2347,15 +2377,15 @@ day_predict_data <- data.frame(diel_num = 1.5, depth = seq(1, 1000, by = 1), pca
 day_predict_data
 
 day_predict <- predict.gam(Ecar_model, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(Ecar_model$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(Ecar_model$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(Ecar_model$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -2366,8 +2396,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -2375,15 +2407,15 @@ night_predict_data <- data.frame(diel_num = 3.5, depth = seq(1, 1000, by = 1), p
 night_predict_data
 
 night_predict <- predict.gam(Ecar_model, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(Ecar_model$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(Ecar_model$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(Ecar_model$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -2394,8 +2426,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -2412,6 +2446,9 @@ inflated_day_abundance
 # Threshold depth calculation from median depth 
 day_prop <- data.frame(y = day_predict_data$inflated_day, x = day_predict_data$depth)
 night_prop <- data.frame(y = night_predict_data$night_predict, x = night_predict_data$depth)
+
+day_prop$abun <- round(day_prop$y*10^5, digits = 0)
+head(day_prop)
 
 day_count <- vector()
 for(i in 1:nrow(day_prop)){
@@ -2506,14 +2543,13 @@ proportion
 
 
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
                       median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 Results
@@ -2565,7 +2601,7 @@ new_IKMT <- new[new$netType != "IKMT",]
 All_model1 <- gam(logCPUE ~ ti(diel_num, depth, k =  c(5,5), bs = c("cc", "tp")) + 
                     s(diel_num, k = 5, bs = "cc") + s(depth, k = 5) + pca, 
                   select = TRUE, data = new_IKMT,
-                  family = "tw", knots = knots, method = "ML")
+                  family = "tw", knots = knots, method = "REML")
 
 All_model_summary <- summary(All_model1)
 All_model_summary
@@ -2577,6 +2613,7 @@ result <- data.frame(Species = name,
                      time = round(All_model_summary$s.table[3,4], digits = 5),
                      net = round(All_model_summary$p.pv[[2]], digits =5),
                      R_squared = round(All_model_summary$dev.expl, digits = 3), 
+                     AIC = round(AIC(All_model1), digits = 0),
                      N = All_model_summary$n,
                      lat = 65)
 result
@@ -2626,15 +2663,15 @@ day_predict_data <- data.frame(diel_num = 1.5, depth = seq(1, 1000, by = 1), pca
 day_predict_data
 
 day_predict <- predict.gam(All_model1, day_predict_data, 
-                           type = "response", se.fit = T)
-day_predict_data <- cbind(day_predict, day_predict_data)
-day_predict_data
-day_predict_data$day_predict <- exp(day_predict_data$fit) -1
-day_predict_data$SE <- exp(day_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+day_predict$CI <- 1.96 * day_predict$se.fit
 
-day_predict_data$upr <- day_predict_data$day_predict + (2 * day_predict_data$SE)
-day_predict_data$lwr <- day_predict_data$day_predict - (2 * day_predict_data$SE)
-day_predict_data
+day_predict$day_predict <- exp(All_model1$family$linkinv(day_predict$fit)) -1
+day_predict$upr <- exp(All_model1$family$linkinv(day_predict$fit + day_predict$CI)) -1
+day_predict$lwr <- exp(All_model1$family$linkinv(day_predict$fit - day_predict$CI)) -1
+
+day_predict_data <- cbind(day_predict, day_predict_data)
+head(day_predict_data)
 
 peak_day <- day_predict_data$depth[which.max(day_predict_data$day_predict)]
 peak_day
@@ -2645,8 +2682,10 @@ central_day
 
 day_abundance <- sum(day_predict_data$day_predict)
 day_abundance
-day_abundance_SE <- sum(day_predict_data$SE)
-day_abundance_SE
+day_abundance_upr <- sum(day_predict_data$upr)
+day_abundance_upr
+day_abundance_lwr <- sum(day_predict_data$lwr)
+day_abundance_lwr
 
 
 # Nighttime abundance 
@@ -2654,15 +2693,15 @@ night_predict_data <- data.frame(diel_num = 3.5, depth = seq(1, 1000, by = 1), p
 night_predict_data
 
 night_predict <- predict.gam(All_model1, night_predict_data, 
-                             type = "response", se.fit = T)
-night_predict_data <- cbind(night_predict, night_predict_data)
-night_predict_data
-night_predict_data$night_predict <- exp(night_predict_data$fit) -1
-night_predict_data$SE <- exp(night_predict_data$se.fit) -1
+                           type = "link", se.fit = T)
+night_predict$CI <- 1.96 * night_predict$se.fit
 
-night_predict_data$upr <- night_predict_data$night_predict + (2 * night_predict_data$SE)
-night_predict_data$lwr <- night_predict_data$night_predict - (2 * night_predict_data$SE)
-night_predict_data
+night_predict$night_predict <- exp(All_model1$family$linkinv(night_predict$fit)) -1
+night_predict$upr <- exp(All_model1$family$linkinv(night_predict$fit + night_predict$CI)) -1
+night_predict$lwr <- exp(All_model1$family$linkinv(night_predict$fit - night_predict$CI)) -1
+
+night_predict_data <- cbind(night_predict, night_predict_data)
+head(night_predict_data)
 
 peak_night <- night_predict_data$depth[which.max(night_predict_data$night_predict)]
 peak_night
@@ -2673,8 +2712,10 @@ central_night
 
 night_abundance <- sum(night_predict_data$night_predict)
 night_abundance
-night_abundance_SE <- sum(night_predict_data$SE)
-night_abundance_SE
+night_abundance_upr <- sum(night_predict_data$upr)
+night_abundance_upr
+night_abundance_lwr <- sum(night_predict_data$lwr)
+night_abundance_lwr
 
 
 # Day-night difference
@@ -2786,14 +2827,13 @@ proportion
 
 name <- "All species"
 Results <- data.frame(Species = name,
-                      Peak_day = peak_day, Peak_night = peak_night,
-                      centre_day = round(central_day, digits = 0), 
-                      centre_night = round(central_night, digits = 0),
-                      median_day = median_day, median_night = median_night, 
+                      median_day = median_day, median_night = median_night,
                       day_abundance = paste0(round(day_abundance/1000, digits = 3), 
-                                             " (", round(day_abundance_SE/1000, digits = 3), ")"), 
+                                             " [", round(day_abundance_lwr/1000, digits = 3), ", ",
+                                             round(day_abundance_upr/1000, digits = 3), "]"), 
                       night_abundance = paste0(round(night_abundance/1000, digits = 3), 
-                                               " (", round(night_abundance_SE/1000, digits = 3), ")"),
+                                               " [", round(night_abundance_lwr/1000, digits = 3), ", ",
+                                               round(night_abundance_upr/1000, digits = 3), "]"),
                       Threshold = intercept,
                       proportion = round(proportion*100, digits = 1))
 
@@ -2825,7 +2865,7 @@ write.csv(GAM_result, "GAM_result.csv", row.names = F)
 
 # DVM pattern
 DVM_plot <- Eant_plot1 + Kand_plot1 + Gbra_plot1 + Pbol_plot1 +
-  Gnic_plot1 + Gfra_plot1 + Pten_plot1 + Ecar_plot1 + plot_layout(ncol = 2) 
+  Gnic_plot1 + Gfra_plot1 + Pten_plot1 + Ecar_plot1 + plot_layout(ncol = 2)
 DVM_plot
 
 wrap_elements(DVM_plot) +
@@ -2840,21 +2880,23 @@ wrap_elements(DVM_plot) +
 Eant_fit +
   Kand_fit + Gbra_fit + Pbol_fit +
   Gnic_fit + Gfra_fit + Pten_fit +
-  Ecar_fit +  plot_layout(ncol = 2, axis_titles = "collect")
+  Ecar_fit +  plot_layout(ncol = 2)
 # 800W x 1400H (8 x 14)
 
 # DVM pattern (day/night only - depth on y)
 Eant_fit1 +
   Kand_fit1 + Gbra_fit1 + Pbol_fit1 +
   Gnic_fit1 + Gfra_fit1 + Pten_fit1 +
-  Ecar_fit1 +  plot_layout(ncol = 2, axis_titles = "collect")
-# 800W x 1400H (8 x 14)
+  Ecar_fit1 +  plot_layout(ncol = 2)
+# 1000W x 1800H (10 x 18)
 
 
-# All species model 
+# All species model
 All_plot1 + All_fit
 # 1200W x 600H
 
-# All species model 
+# All species model
 All_plot1 + All_fit1
 # 1200W x 600H
+
+writeLines(capture.output(sessionInfo()), "sessionInfo.txt")

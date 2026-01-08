@@ -102,7 +102,7 @@ hist + plot_layout(guides = "collect", axis_titles = "collect")
 
 
 #####################################################
-### Effect of dpeth/lat on size of samples caught ###
+### Effect of depth/lat on size of samples caught ###
 #####################################################
 
 library(rcartocolor)
