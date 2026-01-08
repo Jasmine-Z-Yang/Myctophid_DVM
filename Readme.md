@@ -2,7 +2,7 @@
 
 **Software required: R (version 4.3.1), QGIS (3.38.1)**<br /><br />
 
-This repository holds the data and codes used for the paper "Dynamics of daily vertical migration in mesopelagic fish communities across the Southern Ocean" by Zhengxin (Jasmine) Yang, Sophie Fielding, Jennifer J. Freer, Geraint A. Tarling, Ryan A. Saunders, and Martin J. Genner (2026) in Proceedings B (DOI: 10.1098/rspb.2025.2264).<br /><br />
+This repository holds the data and codes used for the paper "Dynamics of daily vertical migration in mesopelagic fish communities across the Southern Ocean" by Zhengxin (Jasmine) Yang, Sophie Fielding, Jennifer J. Freer, Geraint A. Tarling, Ryan A. Saunders, and Martin J. Genner (2026) in *Proceedings B* (DOI: 10.1098/rspb.2025.2264).<br /><br />
 
 Data used for the analyses can be downloaded from the freely available [Myctobase](https://zenodo.org/records/6562776) (<https://doi.org/10.1038/s41597-022-01496-y>) and should be saved to the Myctobase directory. Three points in "event_edit.csv" within Myctobase directory have been modified from the original "event.csv" based on literature. Modifications made are stated in the "Notes" column.
 
